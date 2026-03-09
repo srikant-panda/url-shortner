@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snip.ly — URL Shortener</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: rgba(255,255,255,0.05);
+      --surface-hover: rgba(255,255,255,0.09);
+      --border: rgba(255,255,255,0.08);
+      --accent1: #7c3aed;
+      --accent2: #06b6d4;
+      --accent3: #f59e0b;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --success: #10b981;
+      --error: #ef4444;
+      --radius: 1rem;
+      --glow: 0 0 40px rgba(124,58,237,0.35);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── Animated mesh gradient background ── */
+    .bg-canvas {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 20%, rgba(124,58,237,0.25) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(6,182,212,0.18) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 60% 10%, rgba(245,158,11,0.12) 0%, transparent 50%),
+        var(--bg);
+      animation: bgDrift 15s ease-in-out infinite alternate;
+    }
+    @keyframes bgDrift {
+      0%   { filter: hue-rotate(0deg) brightness(1); }
+      50%  { filter: hue-rotate(15deg) brightness(1.05); }
+      100% { filter: hue-rotate(-10deg) brightness(0.97); }
+    }
+
+    /* ── Floating orbs ── */
+    .orbs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+    .orb {
+      position: absolute; border-radius: 50%;
+      filter: blur(80px); opacity: 0.18;
+      animation: float linear infinite;
+    }
+    .orb:nth-child(1) { width:420px; height:420px; background:#7c3aed; top:5%; left:-10%; animation-duration:22s; }
+    .orb:nth-child(2) { width:300px; height:300px; background:#06b6d4; top:60%; right:-8%; animation-duration:28s; animation-delay:-8s; }
+    .orb:nth-child(3) { width:220px; height:220px; background:#f59e0b; top:40%; left:45%; animation-duration:18s; animation-delay:-5s; }
+    @keyframes float {
+      0%,100% { transform: translateY(0px) scale(1); }
+      33%      { transform: translateY(-40px) scale(1.06); }
+      66%      { transform: translateY(25px) scale(0.96); }
+    }
+
+    /* ── Particles ── */
+    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.6);
+      animation: rise linear infinite;
+    }
+    @keyframes rise {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.5; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center; margin-bottom: 2.5rem;
+      animation: slideDown 0.8s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .logo {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 2.4rem; font-weight: 800; letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #a78bfa, #38bdf8, #fbbf24);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .logo-icon {
+      display: inline-block; width: 2.4rem; height: 2.4rem;
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      border-radius: 0.6rem; position: relative;
+      animation: logoPulse 3s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    .logo-icon::before {
+      content: "✂";
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; -webkit-text-fill-color: white;
+    }
+    @keyframes logoPulse {
+      0%,100% { transform: rotate(0deg) scale(1); }
+      25%      { transform: rotate(-8deg) scale(1.07); }
+      75%      { transform: rotate(8deg) scale(0.95); }
+    }
+    .tagline {
+      margin-top: 0.6rem; color: var(--muted);
+      font-size: 1rem; font-weight: 400; letter-spacing: 0.01em;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 1.5);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      padding: 2rem;
+      box-shadow: var(--glow), 0 20px 60px rgba(0,0,0,0.4);
+      animation: fadeUp 0.9s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(40px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── Input group ── */
+    .input-group {
+      display: flex; gap: 0.75rem; flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .input-wrap {
+      flex: 1; min-width: 0;
+      position: relative;
+    }
+    .input-icon {
+      position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 1.1rem; pointer-events: none;
+      transition: color 0.2s;
+    }
+    input[type="url"] {
+      width: 100%; height: 3.2rem;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit; font-size: 0.95rem;
+      padding: 0 1rem 0 2.8rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    input[type="url"]:focus {
+      border-color: var(--accent1);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+      background: rgba(255,255,255,0.07);
+    }
+    input[type="url"]:focus ~ .input-icon { color: var(--accent1); }
+    input[type="url"]::placeholder { color: var(--muted); }
+
+    /* Note: icon-label trick for sibling selector */
+    .input-wrap:focus-within .input-icon { color: var(--accent1); }
+
+    .btn-shorten {
+      height: 3.2rem; padding: 0 1.6rem;
+      background: linear-gradient(135deg, var(--accent1), #5b21b6);
+      border: none; border-radius: var(--radius);
+      color: #fff; font-family: inherit;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+      position: relative; overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.45);
+    }
+    .btn-shorten::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .btn-shorten:hover::before { opacity: 1; }
+    .btn-shorten:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(124,58,237,0.6); }
+    .btn-shorten:active { transform: translateY(0px) scale(0.98); }
+    .btn-shorten:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Spinner inside button */
+    .spinner {
+      display: inline-block; width: 1rem; height: 1rem;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result box ── */
+    .result {
+      margin-top: 1.25rem;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: var(--radius);
+      padding: 1rem 1.2rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+      animation: resultPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes resultPop {
+      from { opacity: 0; transform: scale(0.92) translateY(10px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .result.hidden { display: none; }
+    .result-label { font-size: 0.75rem; color: var(--success); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.2rem; }
+    .result-url {
+      font-size: 1rem; font-weight: 600; color: var(--text);
+      word-break: break-all;
+    }
+    .result-url a { color: inherit; text-decoration: none; }
+    .result-url a:hover { text-decoration: underline; }
+    .btn-copy {
+      flex-shrink: 0; height: 2.4rem; padding: 0 1rem;
+      background: rgba(16,185,129,0.15);
+      border: 1px solid rgba(16,185,129,0.3);
+      border-radius: calc(var(--radius) * 0.7);
+      color: var(--success); font-family: inherit;
+      font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-copy:hover {
+      background: rgba(16,185,129,0.28);
+      transform: scale(1.06);
+    }
+    .btn-copy.copied {
+      background: var(--success); color: #fff;
+      border-color: var(--success);
+      animation: copyBounce 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes copyBounce {
+      from { transform: scale(0.9); }
+      to   { transform: scale(1); }
+    }
+
+    /* ── Error ── */
+    .error-msg {
+      margin-top: 0.75rem; padding: 0.75rem 1rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius);
+      color: #fca5a5; font-size: 0.875rem;
+      animation: shake 0.4s ease;
+    }
+    .error-msg.hidden { display: none; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-8px); }
+      40%      { transform: translateX(8px); }
+      60%      { transform: translateX(-5px); }
+      80%      { transform: translateX(5px); }
+    }
+
+    /* ── History ── */
+    .history-section {
+      width: 100%; max-width: 640px;
+      margin-top: 1.5rem;
+      animation: fadeUp 1s cubic-bezier(0.16,1,0.3,1) 0.3s both;
+    }
+    .history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .history-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+    .btn-clear {
+      font-size: 0.75rem; color: var(--muted); background: none; border: none;
+      cursor: pointer; transition: color 0.2s;
+    }
+    .btn-clear:hover { color: var(--error); }
+    .history-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.8rem 1rem;
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .history-item:hover { background: var(--surface-hover); border-color: rgba(255,255,255,0.14); }
+    .history-item-info { min-width: 0; flex: 1; }
+    .history-item-short { font-size: 0.9rem; font-weight: 600; color: #a78bfa; }
+    .history-item-short a { color: inherit; text-decoration: none; }
+    .history-item-short a:hover { text-decoration: underline; }
+    .history-item-long { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.1rem; }
+    .btn-copy-sm {
+      flex-shrink: 0; height: 2rem; padding: 0 0.75rem;
+      background: rgba(124,58,237,0.12);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: calc(var(--radius) * 0.6);
+      color: #a78bfa; font-family: inherit;
+      font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-copy-sm:hover { background: rgba(124,58,237,0.25); transform: scale(1.05); }
+
+    /* ── Stats strip ── */
+    .stats {
+      display: flex; gap: 2rem; justify-content: center;
+      margin-top: 2rem;
+      animation: fadeUp 1.1s cubic-bezier(0.16,1,0.3,1) 0.5s both;
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.1rem; }
+
+    /* ── Footer ── */
+    footer {
+      position: relative; z-index: 1;
+      margin-top: 3rem; padding: 1.5rem;
+      text-align: center; color: var(--muted);
+      font-size: 0.8rem;
+      animation: fadeUp 1.2s cubic-bezier(0.16,1,0.3,1) 0.7s both;
+    }
+    footer span { color: #e879f9; }
+
+    /* ── Responsive ── */
+    @media (max-width: 500px) {
+      .btn-shorten { width: 100%; }
+      .input-group { flex-direction: column; }
+      .stats { gap: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="bg-canvas"></div>
+<div class="orbs"><div class="orb"></div><div class="orb"></div><div class="orb"></div></div>
+<div class="particles" id="particles"></div>
+
+<div class="page">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <span class="logo-icon"></span>
+      Snip.ly
+    </div>
+    <p class="tagline">Shorten any link in milliseconds &mdash; sleek, fast, free.</p>
+  </header>
+
+  <!-- Main card -->
+  <div class="card">
+    <div class="input-group">
+      <div class="input-wrap">
+        <span class="input-icon">🔗</span>
+        <input type="url" id="urlInput" placeholder="Paste your long URL here…" autocomplete="off" spellcheck="false" />
+      </div>
+      <button class="btn-shorten" id="shortenBtn" onclick="shortenUrl()">
+        <span id="btnText">Shorten</span>
+      </button>
+    </div>
+
+    <div class="result hidden" id="result">
+      <div>
+        <div class="result-label">✓ Shortened URL</div>
+        <div class="result-url"><a id="resultLink" href="#" target="_blank"></a></div>
+      </div>
+      <button class="btn-copy" id="copyBtn" onclick="copyResult()">Copy</button>
+    </div>
+
+    <div class="error-msg hidden" id="errorMsg"></div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section" id="historySection" style="display:none">
+    <div class="history-header">
+      <span class="history-title">📋 Recent links</span>
+      <button class="btn-clear" onclick="clearHistory()">Clear all</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="stat-value" id="statCount">0</div><div class="stat-label">Links shortened</div></div>
+    <div class="stat"><div class="stat-value">⚡</div><div class="stat-label">Instant redirect</div></div>
+    <div class="stat"><div class="stat-value">🔒</div><div class="stat-label">Secure & private</div></div>
+  </div>
+
+</div>
+
+<footer>Made with <span>♥</span> using FastAPI &amp; vanilla JS</footer>
+
+<script>
+  /* ── Spawn particles ── */
+  (function spawnParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 28; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 3 + 1;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random() * 100}%;
+        animation-duration:${Math.random() * 14 + 8}s;
+        animation-delay:${Math.random() * -20}s;
+        opacity:${Math.random() * 0.5 + 0.1};
+      `;
+      container.appendChild(p);
+    }
+  })();
+
+  /* ── State ── */
+  const API = window.location.origin;
+  let history = JSON.parse(localStorage.getItem('snip_history') || '[]');
+  let totalCount = parseInt(localStorage.getItem('snip_count') || '0');
+
+  function saveHistory() {
+    localStorage.setItem('snip_history', JSON.stringify(history));
+    localStorage.setItem('snip_count', totalCount);
+  }
+
+  /* ── Render history ── */
+  function renderHistory() {
+    const section = document.getElementById('historySection');
+    const list = document.getElementById('historyList');
+    document.getElementById('statCount').textContent = totalCount;
+
+    if (history.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    list.innerHTML = '';
+    history.slice().reverse().forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = 'history-item';
+      el.style.animationDelay = `${i * 0.04}s`;
+      el.innerHTML = `
+        <div class="history-item-info">
+          <div class="history-item-short"><a href="${item.short}" target="_blank">${item.short}</a></div>
+          <div class="history-item-long" title="${item.original}">${item.original}</div>
+        </div>
+        <button class="btn-copy-sm" onclick="copyText('${item.short}', this)">Copy</button>
+      `;
+      list.appendChild(el);
+    });
+  }
+
+  function clearHistory() {
+    history = [];
+    saveHistory();
+    renderHistory();
+  }
+
+  /* ── Copy helpers ── */
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copied';
+      btn.style.background = 'rgba(16,185,129,0.25)';
+      btn.style.color = '#10b981';
+      btn.style.borderColor = 'rgba(16,185,129,0.4)';
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 2000);
+    });
+  }
+
+  function copyResult() {
+    const link = document.getElementById('resultLink').href;
+    const btn = document.getElementById('copyBtn');
+    navigator.clipboard.writeText(link).then(() => {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2200);
+    });
+  }
+
+  /* ── Main shorten logic ── */
+  async function shortenUrl() {
+    const input = document.getElementById('urlInput');
+    const btn = document.getElementById('shortenBtn');
+    const btnText = document.getElementById('btnText');
+    const resultBox = document.getElementById('result');
+    const resultLink = document.getElementById('resultLink');
+    const errorBox = document.getElementById('errorMsg');
+
+    const url = input.value.trim();
+    if (!url) { showError('Please enter a URL first.'); return; }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      showError('URL must start with http:// or https://');
+      return;
+    }
+
+    // Loading state
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="spinner"></span>';
+    resultBox.classList.add('hidden');
+    errorBox.classList.add('hidden');
+
+    try {
+      const res = await fetch(`${API}/shorten`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `Server error (${res.status})`);
+      }
+
+      const data = await res.json();
+      const shortUrl = `${API}/${data.short_code}`;
+
+      resultLink.textContent = shortUrl;
+      resultLink.href = shortUrl;
+      resultBox.classList.remove('hidden');
+
+      // Add to history
+      history = history.filter(h => h.original !== url); // dedup
+      history.push({ short: shortUrl, original: url });
+      if (history.length > 20) history.shift();
+      totalCount++;
+      saveHistory();
+      renderHistory();
+
+      input.value = '';
+    } catch (err) {
+      showError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      btn.disabled = false;
+      btnText.textContent = 'Shorten';
+    }
+  }
+
+  function showError(msg) {
+    const box = document.getElementById('errorMsg');
+    box.textContent = '⚠ ' + msg;
+    box.classList.remove('hidden');
+    // re-trigger shake
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = '';
+  }
+
+  /* ── Enter key support ── */
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') shortenUrl();
+  });
+
+  /* ── Init ── */
+  renderHistory();
+</script>
+</body>
+</html>
